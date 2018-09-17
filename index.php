@@ -2,10 +2,10 @@
 require __DIR__ . '/vendor/autoload.php';
 
 $db = new MysqliDb ('localhost', 'root', '', 'bpmspace_sqms_v6_a');
-$exams = new exams();
+$exams = new exe\exams();
 $exams->testmiki();
 
-var_du($db);
+var_dump($db);
 // konekcija ka bazi
 
 
