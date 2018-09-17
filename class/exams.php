@@ -1,4 +1,5 @@
 <?php
+namespace exe;
 class exams
 {
     public function testmiki() {
