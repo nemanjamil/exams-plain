@@ -1,11 +1,13 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
-
+require_once ("autoloader/autoload.php");
 $db = new MysqliDb ('localhost', 'root', '', 'bpmspace_sqms_v6_a');
-$exams = new exe\exams();
+
+$exams = new exams();
 $exams->testmiki();
 
-var_dump($db);
+
+//var_dump($db);
 // konekcija ka bazi
 
 
@@ -26,11 +28,6 @@ var_dump($db);
 
 //all // require_once / stranice/all/php
 
-//function my_autoloader($class) {
-//    include 'class/' . $class . '.php';
-//}
-//spl_autoload_register('my_autoloader');
-//
 //
 //$exams = new exams();
 //echo $exams->testmiki();

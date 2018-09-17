@@ -1,8 +1,8 @@
 {
     "require": {
         "joshcam/mysqli-database-class": "dev-master"
-    },
-    "autoload": {
-        "psr-4": {"exe\\": "class/"}
     }
+//    "autoload": {
+//        "psr-4": {"exe\\": "class/"}
+//    }
 }
