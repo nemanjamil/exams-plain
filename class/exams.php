@@ -1,19 +1,26 @@
 <?php
 ///namespace exe;
 
-class exams extends MysqliDb
+class exams
 {
     protected $db;
 
     public function __construct($host = "localhost", $username = "root", $password = null, $db = "bpmspace_sqms_v6_a")
     {
-        $this->dbConn = new MysqliDb ($host, $username, '', $db);
+       $this->dbConn = new mysqli('localhost','root','','bpmspace_sqms_v6_a');
     }
 
     public function index()
     {
-       $m =  $this->dbConn->get('sqms_exam_version'); 
-       return json_encode($m);
+        $sql = "SELECT * FROM sqms_exam_version";
+        $result = $this->dbConn->query($sql);
+        if($result){
+            while ($row = $result->fetch_object()){
+                $user_arr[] = $row;
+            }
+        }
+        return $this->jsonenc($user_arr);
+
     }
 
     public function hashsalt()
@@ -30,15 +37,20 @@ class exams extends MysqliDb
             $idvcsv .= $onev[0] . ',';
         }
         asort($idv); // just in case
-
-        $queryExams = DB::table('sqms_exam_version')->whereIn('sqms_exam_version_id', $idv)->get();
+        
+        $query_trim = rtrim($idvcsv,",");
+        $sql = "SELECT * FROM sqms_exam_version WHERE sqms_exam_version_id IN ($query_trim)";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $queryExams[] = $row;
+        }
 
         $examNamefull = "COMBI ";
         $idset = '';
         $i = 0;
+       
 
         foreach ($queryExams as $k => $v) {
-            $v->sqms_exam_version_id;
             $examNamefull .= $this->striphtml($v->sqms_exam_version_name) . "($i), ";
 
             $sqms_exam_version_id = sprintf("%010d", $v->sqms_exam_version_id);
@@ -48,7 +60,7 @@ class exams extends MysqliDb
             $idset .= $sqms_exam_version_id . '-' . $sqms_exam_set . '-' . $sqms_exam_version . '-' . $sqms_exam_version_sample_set . '-';
             $i++;
         }
-
+      
         return $this->showAdv($idvcsv, $examNamefull, $idset, $hash_salt, $v->sqms_exam_set, $v->sqms_exam_version, $sqms_exam_version_sample_set);
 
     }
@@ -72,7 +84,14 @@ class exams extends MysqliDb
             $idvcsv .= $onev[0] . ',';
         }
 
-        $queryExams = DB::table('sqms_exam_version')->whereIn('sqms_exam_version_id', $idv)->get();
+        
+        $query_trim = rtrim($idvcsv,",");
+        $sql = "SELECT * FROM sqms_exam_version WHERE sqms_exam_version_id IN ($query_trim)";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $queryExams[] = $row;
+        }
+
 
         $domtree = new \DOMDocument('1.0', 'UTF-8');
         $xmlRoot = $domtree->createElement("quiz");
@@ -116,8 +135,17 @@ class exams extends MysqliDb
         $xmlRoot->appendChild($comment);
 
 
-        $numberOfQuestionTotalExam = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
-        foreach ($numberOfQuestionTotalExam as $k => $v) {
+        $sql = "CALL examquestions('" . rtrim($idvcsv, ", ") . "')";
+        $result = $this->dbConn->query($sql);
+        $listanswers = [];
+        while ($row = $result->fetch_object()){
+        $numberOfQuestionTotalExam[] = $row;
+        }
+        $result->close();
+        $this->dbConn->next_result();
+
+
+          foreach ($numberOfQuestionTotalExam as $k => $v) {
 
             $sprint_sqms_question_id = sprintf("%010d", $v->sqms_question_id);
             $qarr['question_id'] = $sprint_sqms_question_id;
@@ -128,7 +156,18 @@ class exams extends MysqliDb
             $question_question = $v->question;
 
             $answer_is_sprint = '';
-            $listanswers = DB::select("CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)");
+            
+            $sql = "CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)";
+            $result = $this->dbConn->query($sql);
+            $listanswers = []; // reset array
+            while ($row = $result->fetch_object()){
+             $listanswers[] = $row;
+            }
+            $result->close();
+            $this->dbConn->next_result();
+
+
+
             if (count($listanswers) > 0) {
                 foreach ($listanswers as $k => $v) {
                     $answer_is_sprint .= '-' . sprintf("%010d", $v->sqms_answer_id);
@@ -183,33 +222,42 @@ class exams extends MysqliDb
         return $domtree->saveXML();
     }
 
-    
+    protected function jsonenc($rt){
+        return json_encode($rt,JSON_UNESCAPED_UNICODE);
+    }
+
     public function show($request)
     {
-        $datafull = $request->all();
-        $data = $datafull["data"];
-        $hash_salt = $datafull["hash_salt"];
-        $savedata = $datafull["savedata"];
+
+        $data = $request["data"];
+        $hash_salt = $request["hash_salt"];
+        $savedata = $request["savedata"];
 
         if (!$hash_salt) {
-            return response()->json([
+            $rt = [
                 'message' => 'No hash_salt, please add one',
                 'status' => false
-            ]);
+            ];
+            return $this->jsonenc($rt);
             die;
         }
+
         if (count($data) > 1) {
             $json = $this->showMore($data, $hash_salt);
             $xml = $this->generateXMLMore($data, $hash_salt);
+
+            var_dump($xml);
+            die;
             $linkdofile = $this->saveToStorage($savedata, $json, $xml, $hash_salt);
 
-            return response()->json([
+            $rer = [
                 'json' => $json,
                 'xml' => $xml,
                 'message' => 'Ok',
                 'status' => true,
                 'savedata' => $linkdofile
-            ]);
+            ];
+            return $this->jsonenc($rer);
 
 
         } else {
@@ -217,14 +265,14 @@ class exams extends MysqliDb
             $xml = $this->generateXML($data, $hash_salt);
             $linkdofile = $this->saveToStorage($savedata, $json, $xml, $hash_salt);
 
-            return response()->json([
+            $rer = [
                 'json' => $json,
                 'xml' => $xml,
                 'message' => 'Ok',
                 'status' => true,
                 'savedata' => $linkdofile
-            ]);
-
+            ];
+            return $this->jsonenc($rer);
         }
     }
 
@@ -232,11 +280,11 @@ class exams extends MysqliDb
     {
         if ($savedata == 'download') {
             $namefile = str_replace("-", "", $json["id"]);
-            $publiclink = 'public/' . $namefile;
-            Storage::makeDirectory($publiclink);
-            Storage::put($publiclink . '/' . $namefile . '.json', json_encode($json));
-            Storage::put($publiclink . '/' . $namefile . '.xml', $xml);
-            Storage::put($publiclink . '/' . $namefile . '.SALT', $hash_salt);
+            $publiclink = 'storage/' . $namefile;
+            // Storage::makeDirectory($publiclink);
+            // Storage::put($publiclink . '/' . $namefile . '.json', json_encode($json));
+            // Storage::put($publiclink . '/' . $namefile . '.xml', $xml);
+            // Storage::put($publiclink . '/' . $namefile . '.SALT', $hash_salt);
         }  else {
             $namefile = false;
         }
@@ -246,15 +294,26 @@ class exams extends MysqliDb
 
     protected function numberOfQuestionTotal($idvcsv)
     {
-        return DB::select("CALL countexams('" . rtrim($idvcsv, ", ") . "')");
+        //return DB::select("CALL countexams('" . rtrim($idvcsv, ", ") . "')");
+        //return  $this->dbConn->rawQuery("CALL countexams('" . rtrim($idvcsv, ", ") . "')");
+        
+        $sql = "CALL countexams('" . rtrim($idvcsv, ", ") . "')";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $q[] = $row;
+        }
+        $result->close();
+        $this->dbConn->next_result();
+
+        return $q;
+        
     }
 
     protected function showAdv($idvcsv, $examNamefull, $idset, $hash_salt, $sqms_exam_set, $sqms_exam_version, $sqms_exam_version_sample_set)
     {
 
         $numberOfQuestionTotal = $this->numberOfQuestionTotal($idvcsv);
-
-
+        
         $response["examName"] = rtrim($examNamefull, ", ");
         $response["set"] = $sqms_exam_set;
         $response["version"] = $sqms_exam_version;
@@ -271,8 +330,20 @@ class exams extends MysqliDb
         $response["answerOptions"] = [];
 
 
-        $numberOfQuestionTotalExam = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
+        //$numberOfQuestionTotalExam = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
+        
+        $sql = "CALL examquestions('" . rtrim($idvcsv, ", ") . "')";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $numberOfQuestionTotalExam[] = $row;
+        }
+        $result->close();
+        $this->dbConn->next_result();
+
         $tren = [];
+       
+       
+
         foreach ($numberOfQuestionTotalExam as $k => $v) {
             $sprint_sqms_question_id = sprintf("%010d", $v->sqms_question_id);
             $qarr['question_id'] = $sprint_sqms_question_id;
@@ -285,12 +356,20 @@ class exams extends MysqliDb
             //$numberOfQuestionTotal = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
 
             $ls = [];
-            $listanswers = DB::select("CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)");
+            
+            $sql = "CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)";
+            $result = $this->dbConn->query($sql);
+            $listanswers = [];
+            while ($row = $result->fetch_object()){
+                $listanswers[] = $row;
+            }
+            $result->close();
+            $this->dbConn->next_result();
+
             if (count($listanswers) > 0) {
                 $varHashFirstNumber = true;  // remove line in prod
                 $firstNumberforHash = '';
                 foreach ($listanswers as $k => $v) {
-
 
                     $answer_is_sprint_int = (int) $v->sqms_answer_id;
                     $correct_answ = $v->correct;
@@ -328,6 +407,7 @@ class exams extends MysqliDb
         $response["examQuestions"] = $tren;
 
         return $response;
+    
 
     }
 
