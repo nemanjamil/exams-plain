@@ -93,7 +93,7 @@ class exams
         }
 
 
-        $domtree = new \DOMDocument('1.0', 'UTF-8');
+        $domtree = new DOMDocument('1.0', 'UTF-8');
         $xmlRoot = $domtree->createElement("quiz");
         $xmlRoot = $domtree->appendChild($xmlRoot);
 
@@ -139,11 +139,10 @@ class exams
         $result = $this->dbConn->query($sql);
         $listanswers = [];
         while ($row = $result->fetch_object()){
-        $numberOfQuestionTotalExam[] = $row;
+            $numberOfQuestionTotalExam[] = $row;
         }
         $result->close();
         $this->dbConn->next_result();
-
 
           foreach ($numberOfQuestionTotalExam as $k => $v) {
 
@@ -223,7 +222,7 @@ class exams
     }
 
     protected function jsonenc($rt){
-        return json_encode($rt,JSON_UNESCAPED_UNICODE);
+        return json_encode($rt);
     }
 
     public function show($request)
@@ -245,19 +244,17 @@ class exams
         if (count($data) > 1) {
             $json = $this->showMore($data, $hash_salt);
             $xml = $this->generateXMLMore($data, $hash_salt);
-
-            var_dump($xml);
-            die;
             $linkdofile = $this->saveToStorage($savedata, $json, $xml, $hash_salt);
 
             $rer = [
                 'json' => $json,
-                'xml' => $xml,
+                'xml' => $xml, //simplexml_load_string($xml),
                 'message' => 'Ok',
                 'status' => true,
                 'savedata' => $linkdofile
             ];
-            return $this->jsonenc($rer);
+            
+            return json_encode($rer);
 
 
         } else {
@@ -281,10 +278,13 @@ class exams
         if ($savedata == 'download') {
             $namefile = str_replace("-", "", $json["id"]);
             $publiclink = 'storage/' . $namefile;
-            // Storage::makeDirectory($publiclink);
-            // Storage::put($publiclink . '/' . $namefile . '.json', json_encode($json));
-            // Storage::put($publiclink . '/' . $namefile . '.xml', $xml);
-            // Storage::put($publiclink . '/' . $namefile . '.SALT', $hash_salt);
+            $dn = dirname($publiclink);
+           
+            mkdir(dirname($dn), 0775);
+            file_put_contents($publiclink . '/' . $namefile . '.json', json_encode($json));
+            file_put_contents($publiclink . '/' . $namefile . '.xml', $xml);
+            file_put_contents($publiclink . '/' . $namefile . '.SALT', $hash_salt);
+           
         }  else {
             $namefile = false;
         }
