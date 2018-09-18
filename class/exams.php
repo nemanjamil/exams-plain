@@ -227,7 +227,7 @@ class exams
 
     public function show($request)
     {
-
+       
         $data = $request["data"];
         $hash_salt = $request["hash_salt"];
         $savedata = $request["savedata"];
@@ -240,7 +240,7 @@ class exams
             return $this->jsonenc($rt);
             die;
         }
-
+        
         if (count($data) > 1) {
             $json = $this->showMore($data, $hash_salt);
             $xml = $this->generateXMLMore($data, $hash_salt);
@@ -248,7 +248,7 @@ class exams
 
             $rer = [
                 'json' => $json,
-                'xml' => $xml, //simplexml_load_string($xml),
+                'xml' => $xml, 
                 'message' => 'Ok',
                 'status' => true,
                 'savedata' => $linkdofile
@@ -258,6 +258,7 @@ class exams
 
 
         } else {
+           
             $json = $this->showOne($data, $hash_salt);
             $xml = $this->generateXML($data, $hash_salt);
             $linkdofile = $this->saveToStorage($savedata, $json, $xml, $hash_salt);
@@ -269,6 +270,8 @@ class exams
                 'status' => true,
                 'savedata' => $linkdofile
             ];
+
+            
             return $this->jsonenc($rer);
         }
     }
@@ -278,13 +281,15 @@ class exams
         if ($savedata == 'download') {
             $namefile = str_replace("-", "", $json["id"]);
             $publiclink = 'storage/' . $namefile;
-            $dn = dirname($publiclink);
            
-            mkdir(dirname($dn), 0775);
-            file_put_contents($publiclink . '/' . $namefile . '.json', json_encode($json));
-            file_put_contents($publiclink . '/' . $namefile . '.xml', $xml);
-            file_put_contents($publiclink . '/' . $namefile . '.SALT', $hash_salt);
-           
+            $dn = dirname($publiclink).'/'.$namefile;
+
+            if (!file_exists($dn)) {
+                mkdir($dn, 0775);
+                file_put_contents($publiclink . '/' . $namefile . '.json', json_encode($json));
+                file_put_contents($publiclink . '/' . $namefile . '.xml', $xml);
+                file_put_contents($publiclink . '/' . $namefile . '.SALT', $hash_salt);
+            }
         }  else {
             $namefile = false;
         }
@@ -294,8 +299,6 @@ class exams
 
     protected function numberOfQuestionTotal($idvcsv)
     {
-        //return DB::select("CALL countexams('" . rtrim($idvcsv, ", ") . "')");
-        //return  $this->dbConn->rawQuery("CALL countexams('" . rtrim($idvcsv, ", ") . "')");
         
         $sql = "CALL countexams('" . rtrim($idvcsv, ", ") . "')";
         $result = $this->dbConn->query($sql);
@@ -329,9 +332,6 @@ class exams
         $response["lastname"] = "";
         $response["answerOptions"] = [];
 
-
-        //$numberOfQuestionTotalExam = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
-        
         $sql = "CALL examquestions('" . rtrim($idvcsv, ", ") . "')";
         $result = $this->dbConn->query($sql);
         while ($row = $result->fetch_object()){
@@ -352,8 +352,6 @@ class exams
             $qarr['answers'] = [];
             $qarr['answersSelected'] = [];
 
-
-            //$numberOfQuestionTotal = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
 
             $ls = [];
             
@@ -418,9 +416,13 @@ class exams
         $idv = $onev[0];
         $idvcsv = $onev[0];
 
+       
+        $sql = "SELECT * FROM sqms_exam_version WHERE sqms_exam_version_id = $idv";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $queryExams[] = $row;
+        }
 
-
-        $queryExams = DB::table('sqms_exam_version')->where('sqms_exam_version_id', $idv)->get();
 
         $idset = '';
         $i = 0;
@@ -441,15 +443,20 @@ class exams
 
     protected function generateXML($data, $hash_salt)
     {
-
+        
         $idvcsv = '';
         foreach ($data as $k => $v) {
             $onev = explode("|", $v);
-            $idv[] = $onev[0];
+            $idv = $onev[0];
             $idvcsv .= $onev[0] . ',';
         }
-
-        $queryExams = DB::table('sqms_exam_version')->where('sqms_exam_version_id', $idv)->get();
+        
+        
+        $sql = "SELECT * FROM sqms_exam_version WHERE sqms_exam_version_id = $idv";
+        $result = $this->dbConn->query($sql);
+        while ($row = $result->fetch_object()){
+            $queryExams[] = $row;
+        }
 
 
         $domtree = new \DOMDocument('1.0', 'UTF-8');
@@ -458,6 +465,7 @@ class exams
 
         $idset = '';
         $i = 0;
+        
         foreach ($queryExams as $k => $v) {
             $sqms_exam_version_id = sprintf("%010d", $v->sqms_exam_version_id);
             $sqms_exam_set = sprintf("%05d", $v->sqms_exam_set);
@@ -490,7 +498,17 @@ class exams
         $xmlRoot->appendChild($comment);
 
 
-        $numberOfQuestionTotalExam = DB::select("CALL examquestions('" . rtrim($idvcsv, ", ") . "')");
+        
+        $sql = "CALL examquestions('" . rtrim($idvcsv, ", ") . "')";
+        $result = $this->dbConn->query($sql);
+        $listanswers = [];
+        while ($row = $result->fetch_object()){
+            $numberOfQuestionTotalExam[] = $row;
+        }
+        $result->close();
+        $this->dbConn->next_result();
+
+
         foreach ($numberOfQuestionTotalExam as $k => $v) {
 
 
@@ -503,7 +521,17 @@ class exams
             $question_question = $v->question;
 
             $answer_is_sprint = '';
-            $listanswers = DB::select("CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)");
+           
+            $sql = "CALL listanswers($v->sqms_exam_version_id,$v->sqms_question_id)";
+            $result = $this->dbConn->query($sql);
+            $listanswers = []; // reset array
+            while ($row = $result->fetch_object()){
+                $listanswers[] = $row;
+            }
+            $result->close();
+            $this->dbConn->next_result();
+
+
             if (count($listanswers) > 0) {
                 foreach ($listanswers as $k => $v) {
                     $answer_is_sprint .= '-' . sprintf("%010d", $v->sqms_answer_id);
